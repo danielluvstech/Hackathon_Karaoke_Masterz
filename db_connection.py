@@ -6,7 +6,7 @@ def get_db_connection():
         return psycopg2.connect(
             dbname="karaoke",
             user="postgres",
-            password="D@nth3man",  # Replace with your PostgreSQL password if different
+            password="D@nth3man",  
             host="localhost"
         )
     except psycopg2.Error as e:
