@@ -1,70 +1,55 @@
 import requests
 
-# Spotify API credentials
-CLIENT_ID = "0679b7f45e9646a285da5a6280a5218e"  
-CLIENT_SECRET = "a3be0c680cba4c89abb16bd79e0ad17d"  
+class SpotifyAPI:
+    def __init__(self, client_id, client_secret):
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.token = None
 
-def get_spotify_token():
-    url = "https://accounts.spotify.com/api/token"
-    headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    data = {"grant_type": "client_credentials"}
-    auth = (CLIENT_ID, CLIENT_SECRET)
-    
-    try:
-        response = requests.post(url, headers=headers, data=data, auth=auth, timeout=5)
-        response.raise_for_status()
-        return response.json()["access_token"]
-    except requests.RequestException as e:
-        print(f"Failed to authenticate with Spotify: {e}")
-        return None
+    def authenticate(self):
+        """
+        Authenticate with the Spotify API to retrieve an access token.
+        """
+        url = "https://accounts.spotify.com/api/token"
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        data = {"grant_type": "client_credentials"}
+        
+        try:
+            response = requests.post(url, headers=headers, data=data, auth=(self.client_id, self.client_secret))
+            response.raise_for_status()
+            self.token = response.json().get("access_token")
+            if not self.token:
+                raise ValueError("Authentication failed: No access token returned.")
+        except requests.exceptions.RequestException as e:
+            raise RuntimeError(f"Spotify API authentication error: {e}")
 
-def search_song(song_title):
-    """Search Spotify for a song by title and return the first matching track."""
-    if not song_title.strip():
-        print("Song title cannot be empty.")
-        return None
-    
-    token = get_spotify_token()
-    if not token:
-        return None
-    
-    # Encode song_title to handle special characters
-    query = requests.utils.quote(song_title)
-    url = f"https://api.spotify.com/v1/search?q={query}&type=track&limit=1"
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    try:
-        response = requests.get(url, headers=headers, timeout=5)
-        response.raise_for_status()
-        tracks = response.json()["tracks"]["items"]
-        return tracks[0] if tracks else None
-    except requests.RequestException as e:
-        print(f"Failed to search song '{song_title}': {e}")
-        return None
+    def get_recommendations(self, seed_track=None, seed_artist=None, seed_genre=None):
+        """
+        Get song recommendations from Spotify based on seeds (track, artist, or genre).
+        """
+        if not self.token:
+            self.authenticate()
 
-def get_song_suggestions(song_title):
-    """Get song recommendations from Spotify based on a song title."""
-    track = search_song(song_title)
-    if not track:
-        return []
-    
-    track_id = track["id"]
-    token = get_spotify_token()
-    if not token:
-        return []
-    
-    url = f"https://api.spotify.com/v1/recommendations?seed_tracks={track_id}&limit=3"
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    try:
-        response = requests.get(url, headers=headers, timeout=5)
-        response.raise_for_status()
-        tracks = response.json()["tracks"]
-        suggestions = [
-            {"title": track["name"], "artist": track["artists"][0]["name"]}
-            for track in tracks
-        ]
-        return suggestions
-    except requests.RequestException as e:
-        print(f"Failed to get recommendations for '{song_title}': {e}")
-        return []
+        url = "https://api.spotify.com/v1/recommendations"
+        headers = {"Authorization": f"Bearer {self.token}"}
+        params = {
+            "seed_tracks": seed_track or "",
+            "seed_artists": seed_artist or "",
+            "seed_genres": seed_genre or "",
+            "limit": 5
+        }
+
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            tracks = response.json().get("tracks", [])
+            recommendations = []
+
+            for track in tracks:
+                song_name = track.get("name")
+                artists = [artist["name"] for artist in track.get("artists", [])]
+                recommendations.append({"title": song_name, "artist": ", ".join(artists)})
+            
+            return recommendations
+        except requests.exceptions.RequestException as e:
+            raise RuntimeError(f"Spotify API request error: {e}")
