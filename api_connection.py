@@ -63,39 +63,72 @@ def get_song_suggestions(song_title, artist_name=""):
     if not track:
         print("Cannot get suggestions: No track found.")
         return []
-    
+
     track_id = track["id"]
+    actual_artist_name = track["artists"][0]["name"]
+    actual_artist_id = track["artists"][0]["id"]
+
     token = get_spotify_token()
     if not token:
         print("No token available for Spotify recommendations request.")
         return []
-    
-    url = f"https://api.spotify.com/v1/recommendations?seed_tracks={track_id}&limit=3&market=US"
-    headers = {"Authorization": f"Bearer {token}"}
-    
-    try:
-        response = requests.get(url, headers=headers, timeout=5)
-        response.raise_for_status()
-        tracks = response.json()["tracks"]
-        if not tracks:
-            print(f"No recommendations found for track ID '{track_id}'.")
-            return []
-        suggestions = [
-            {"title": track["name"], "artist": track["artists"][0]["name"]}
-            for track in tracks
-        ]
-        print(f"Retrieved {len(suggestions)} song suggestions.")
+
+    def try_recommendation_request(seed_tracks="", seed_artists="", seed_genres=""):
+        url = "https://api.spotify.com/v1/recommendations?"
+        params = []
+        if seed_tracks:
+            params.append(f"seed_tracks={seed_tracks}")
+        if seed_artists:
+            params.append(f"seed_artists={seed_artists}")
+        if seed_genres:
+            params.append(f"seed_genres={seed_genres}")
+        params.append("limit=3")
+        params.append("market=US")
+        full_url = url + "&".join(params)
+
+        headers = {"Authorization": f"Bearer {token}"}
+        try:
+            response = requests.get(full_url, headers=headers, timeout=5)
+            response.raise_for_status()
+            tracks = response.json()["tracks"]
+            return [
+                {"title": track["name"], "artist": track["artists"][0]["name"]}
+                for track in tracks
+            ]
+        except requests.RequestException as e:
+            print(f"Recommendation request failed: {e}")
+            if hasattr(e, 'response') and e.response:
+                print(f"Response details: {e.response.text}")
+            return None
+
+    # First try: track + artist
+    suggestions = try_recommendation_request(seed_tracks=track_id, seed_artists=actual_artist_id)
+    if suggestions:
+        print(f"Retrieved {len(suggestions)} song suggestions for '{song_title}' by '{actual_artist_name}'.")
         return suggestions
-    except requests.RequestException as e:
-        print(f"Failed to get recommendations for '{song_title}' by '{artist_name}': {e}")
-        if hasattr(e, 'response') and e.response:
-            print(f"Response details: {e.response.text}")
-        return []
+
+    # Second try: artist only
+    print(f"Trying fallback: getting recommendations from artist '{actual_artist_name}' only...")
+    suggestions = try_recommendation_request(seed_artists=actual_artist_id)
+    if suggestions:
+        print(f"Retrieved {len(suggestions)} fallback suggestions for artist '{actual_artist_name}'.")
+        return suggestions
+
+    # Final fallback: genre-based recommendations
+    print("Trying genre fallback: using 'pop' genre...")
+    suggestions = try_recommendation_request(seed_genres="pop")
+    if suggestions:
+        print(f"Retrieved {len(suggestions)} genre-based suggestions (pop).")
+        return suggestions
+
+    # All else failed
+    print("No Spotify suggestions available. Using your song choice.")
+    return []
     
-def get_song_suggestions(song_title, artist_name=""):
-    print("Using mock Spotify suggestions for testing.")
-    return [
-        {"title": "Let It Be", "artist": "The Beatles"},
-        {"title": "Hey Jude", "artist": "The Beatles"},
-        {"title": "Come Together", "artist": "The Beatles"}
-    ]
+# def get_song_suggestions(song_title, artist_name=""):
+#     print("Using mock Spotify suggestions for testing.")
+#     return [
+#         {"title": "Let It Be", "artist": "The Beatles"},
+#         {"title": "Hey Jude", "artist": "The Beatles"},
+#         {"title": "Come Together", "artist": "The Beatles"}
+#     ]
