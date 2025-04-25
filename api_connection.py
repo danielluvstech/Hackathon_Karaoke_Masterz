@@ -1,55 +1,56 @@
 import requests
 
-class SpotifyAPI:
-    def __init__(self, client_id, client_secret):
-        self.client_id = client_id
-        self.client_secret = client_secret
-        self.token = None
+SPOTIFY_CLIENT_ID = "0679b7f45e9646a285da5a6280a5218e"
+SPOTIFY_CLIENT_SECRET = "a3be0c680cba4c89abb16bd79e0ad17d"
 
-    def authenticate(self):
-        """
-        Authenticate with the Spotify API to retrieve an access token.
-        """
-        url = "https://accounts.spotify.com/api/token"
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
-        data = {"grant_type": "client_credentials"}
-        
-        try:
-            response = requests.post(url, headers=headers, data=data, auth=(self.client_id, self.client_secret))
-            response.raise_for_status()
-            self.token = response.json().get("access_token")
-            if not self.token:
-                raise ValueError("Authentication failed: No access token returned.")
-        except requests.exceptions.RequestException as e:
-            raise RuntimeError(f"Spotify API authentication error: {e}")
+def authenticate():
+    """
+    Authenticates with the Spotify API and retrieves an access token.
+    """
+    url = "https://accounts.spotify.com/api/token"
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    data = {"grant_type": "client_credentials"}
+    auth = (SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
 
-    def get_recommendations(self, seed_track=None, seed_artist=None, seed_genre=None):
-        """
-        Get song recommendations from Spotify based on seeds (track, artist, or genre).
-        """
-        if not self.token:
-            self.authenticate()
+    response = requests.post(url, headers=headers, data=data, auth=auth)
+    response_data = response.json()
 
-        url = "https://api.spotify.com/v1/recommendations"
-        headers = {"Authorization": f"Bearer {self.token}"}
-        params = {
-            "seed_tracks": seed_track or "",
-            "seed_artists": seed_artist or "",
-            "seed_genres": seed_genre or "",
-            "limit": 5
-        }
+    if response.status_code == 200:
+        return response_data["access_token"]
+    else:
+        raise RuntimeError(f"Spotify authentication failed: {response_data}")
 
-        try:
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            tracks = response.json().get("tracks", [])
-            recommendations = []
+def get_song_suggestions(query_type="genre", query_value="pop"):
+    """
+    Fetches song suggestions from the Spotify API based on artist or genre.
+    """
+    access_token = authenticate()
+    url = "https://api.spotify.com/v1/search"
 
-            for track in tracks:
-                song_name = track.get("name")
-                artists = [artist["name"] for artist in track.get("artists", [])]
-                recommendations.append({"title": song_name, "artist": ", ".join(artists)})
-            
-            return recommendations
-        except requests.exceptions.RequestException as e:
-            raise RuntimeError(f"Spotify API request error: {e}")
+    # Set the query type (e.g., genre or artist)
+    if query_type not in ["genre", "artist"]:
+        raise ValueError("Invalid query_type. Must be 'genre' or 'artist'.")
+
+    query = f"{query_type}:{query_value}"
+    params = {
+        "q": query,
+        "type": "track",
+        "limit": 5,  # Limit to 5 suggestions for simplicity
+    }
+    headers = {
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    response = requests.get(url, headers=headers, params=params)
+    response_data = response.json()
+
+    if response.status_code == 200:
+        # Extract song suggestions
+        tracks = response_data.get("tracks", {}).get("items", [])
+        suggestions = [
+            {"title": track["name"], "artist": ", ".join([artist["name"] for artist in track["artists"]])}
+            for track in tracks
+        ]
+        return suggestions
+    else:
+        raise RuntimeError(f"Failed to fetch song suggestions: {response_data}")
