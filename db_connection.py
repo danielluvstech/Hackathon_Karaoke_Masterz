@@ -2,6 +2,9 @@ import psycopg2
 from psycopg2 import sql
 
 def get_db_connection():
+    """
+    Establish a connection to the database.
+    """
     try:
         return psycopg2.connect(
             dbname="karaoke",
@@ -12,137 +15,103 @@ def get_db_connection():
     except psycopg2.Error as e:
         raise Exception(f"Failed to connect to database: {e}")
 
-def migrate_schema():
+def execute_query(query, params=None, fetch_one=False, fetch_all=False):
+    """
+    Execute a database query with optional parameters.
+    """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
-        # Check if song_id column exists in singers table
-        cur.execute("""
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_name = 'singers' AND column_name = 'song_id';
-        """)
-        has_song_id = cur.fetchone() is not None
-        
-        if has_song_id:
-            print("Migrating singers table to use song_title...")
-            
-            # Step 1: Add song_title column
-            cur.execute("ALTER TABLE singers ADD COLUMN song_title VARCHAR(200);")
-            
-            # Step 2: Populate song_title based on song_id
-            cur.execute("""
-                UPDATE singers
-                SET song_title = CASE
-                    WHEN song_id = 1 THEN 'Let It Be'
-                    WHEN song_id = 2 THEN 'Sweet Caroline'
-                    WHEN song_id = 3 THEN 'Imagine'
-                    ELSE 'Unknown'
-                END;
-            """)
-            
-            # Step 3: Make song_title NOT NULL
-            cur.execute("ALTER TABLE singers ALTER COLUMN song_title SET NOT NULL;")
-            
-            # Step 4: Drop song_id column
-            cur.execute("ALTER TABLE singers DROP COLUMN song_id;")
-            
-            print("Schema migration completed successfully.")
-        else:
-            print("Schema already up to date (song_title exists).")
-        
+        cur.execute(query, params or ())
+        result = None
+        if fetch_one:
+            result = cur.fetchone()
+        elif fetch_all:
+            result = cur.fetchall()
         conn.commit()
+        return result
+    except psycopg2.Error as e:
+        raise Exception(f"Database query failed: {e}")
+    finally:
         cur.close()
         conn.close()
-    except psycopg2.Error as e:
-        print(f"Error during schema migration: {e}")
-        raise
+
+def migrate_schema():
+    """
+    Perform schema migration to update the singers table.
+    """
+    query_check_column = """
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'singers' AND column_name = 'song_id';
+    """
+    has_song_id = execute_query(query_check_column, fetch_one=True) is not None
+
+    if has_song_id:
+        print("Migrating singers table to use song_title...")
+        execute_query("ALTER TABLE singers ADD COLUMN song_title VARCHAR(200);")
+        execute_query("""
+            UPDATE singers
+            SET song_title = CASE
+                WHEN song_id = 1 THEN 'Let It Be'
+                WHEN song_id = 2 THEN 'Sweet Caroline'
+                WHEN song_id = 3 THEN 'Imagine'
+                ELSE 'Unknown'
+            END;
+        """)
+        execute_query("ALTER TABLE singers ALTER COLUMN song_title SET NOT NULL;")
+        execute_query("ALTER TABLE singers DROP COLUMN song_id;")
+        print("Schema migration completed successfully.")
+    else:
+        print("Schema already up to date (song_title exists).")
 
 def test_connection():
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        # Verify singers table schema
-        cur.execute("""
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_name = 'singers';
-        """)
-        columns = [row[0] for row in cur.fetchall()]
-        expected_columns = {'id', 'name', 'song_title'}
-        schema_ok = set(columns) == expected_columns
-        cur.close()
-        conn.close()
-        return {
-            "connection": "successful",
-            "schema": "correct" if schema_ok else f"incorrect (columns: {columns})"
-        }
-    except psycopg2.Error as e:
-        return {"connection": f"failed: {e}", "schema": "not checked"}
+    """
+    Test database connection and verify singers table schema.
+    """
+    query = """
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'singers';
+    """
+    columns = [row[0] for row in execute_query(query, fetch_all=True)]
+    expected_columns = {'id', 'name', 'song_title'}
+    schema_ok = set(columns) == expected_columns
+    return {
+        "connection": "successful",
+        "schema": "correct" if schema_ok else f"incorrect (columns: {columns})"
+    }
 
 def add_singer(name, song_title):
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO singers (name, song_title) VALUES (%s, %s) RETURNING id;",
-            (name, song_title)
-        )
-        singer_id = cur.fetchone()[0]
-        conn.commit()
-        return singer_id
-    except psycopg2.Error as e:
-        raise Exception(f"Error adding singer: {e}")
-    finally:
-        cur.close()
-        conn.close()
+    """
+    Add a new singer to the database.
+    """
+    query = "INSERT INTO singers (name, song_title) VALUES (%s, %s) RETURNING id;"
+    return execute_query(query, params=(name, song_title), fetch_one=True)[0]
 
 def update_song(name, new_song_title):
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE singers SET song_title = %s WHERE name = %s;",
-            (new_song_title, name)
-        )
-        conn.commit()
-    except psycopg2.Error as e:
-        raise Exception(f"Error updating song: {e}")
-    finally:
-        cur.close()
-        conn.close()
+    """
+    Update a singer's song in the database.
+    """
+    query = "UPDATE singers SET song_title = %s WHERE name = %s;"
+    execute_query(query, params=(new_song_title, name))
 
 def add_to_queue(singer_id):
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT MAX(position) FROM queue;")
-        max_position = cur.fetchone()[0] or 0
-        new_position = max_position + 1
-        cur.execute(
-            "INSERT INTO queue (singer_id, position) VALUES (%s, %s);",
-            (singer_id, new_position)
-        )
-        conn.commit()
-    except psycopg2.Error as e:
-        raise Exception(f"Error adding to queue: {e}")
-    finally:
-        cur.close()
-        conn.close()
+    """
+    Add a singer to the karaoke queue.
+    """
+    query_max_position = "SELECT MAX(position) FROM queue;"
+    max_position = execute_query(query_max_position, fetch_one=True)[0] or 0
+    new_position = max_position + 1
+    query_insert = "INSERT INTO queue (singer_id, position) VALUES (%s, %s);"
+    execute_query(query_insert, params=(singer_id, new_position))
 
 def get_singer_names():
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT name FROM singers;")
-        names = [row[0] for row in cur.fetchall()]
-        return names
-    except psycopg2.Error as e:
-        raise Exception(f"Error fetching singer names: {e}")
-    finally:
-        cur.close()
-        conn.close()
+    """
+    Fetch all singer names from the database.
+    """
+    query = "SELECT name FROM singers;"
+    return [row[0] for row in execute_query(query, fetch_all=True)]
 
 if __name__ == "__main__":
     print(test_connection())
