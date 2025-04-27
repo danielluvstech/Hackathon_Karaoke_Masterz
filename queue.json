@@ -1,0 +1,37 @@
+[
+    {
+        "position": 1,
+        "singer_name": "Anania",
+        "song_title": "Sweet Caroline"
+    },
+    {
+        "position": 2,
+        "singer_name": "Sonia",
+        "song_title": "We Will Rock You"
+    },
+    {
+        "position": 3,
+        "singer_name": "Will",
+        "song_title": "In the End"
+    },
+    {
+        "position": 4,
+        "singer_name": "Miriam",
+        "song_title": "Beautiful Things"
+    },
+    {
+        "position": 5,
+        "singer_name": "Michal",
+        "song_title": "Numb"
+    },
+    {
+        "position": 6,
+        "singer_name": "Daniel",
+        "song_title": "I Wanna Be Yours"
+    },
+    {
+        "position": 7,
+        "singer_name": "Sonia",
+        "song_title": "We Will Rock You"
+    }
+]

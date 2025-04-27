@@ -1,8 +1,8 @@
 import psycopg2
 from psycopg2 import sql, OperationalError
 from models import Singer, QueueEntry
+import json
 
-# Replace with your PostgreSQL connection parameters
 DB_NAME = "karaoke"
 DB_USER = "postgres"
 DB_PASSWORD = "D@nth3man"
@@ -123,6 +123,34 @@ def get_queue():
         cursor.close()
         connection.close()
 
+def export_queue_to_json():
+    """
+    Exports the current queue to a JSON file named 'queue.json'.
+    Returns a confirmation message.
+    """
+    try:
+        queue = get_queue()
+        if not queue:
+            return "Queue is empty. Nothing to export."
+
+        # Transform queue data into JSON
+        queue_data = [
+            {
+                "position": entry.position,
+                "singer_name": entry.singer.name,
+                "song_title": entry.singer.song_title
+            }
+            for entry in queue
+        ]
+
+        # Write to queue.json
+        with open("queue.json", "w") as f:
+            json.dump(queue_data, f, indent=4)
+
+        return f"Queue exported successfully to queue.json with {len(queue_data)} entries!"
+    except Exception as e:
+        raise RuntimeError(f"Error exporting queue to JSON: {e}")
+
 def reorder_queue(queue_entry_id, new_position):
     connection = get_connection()
     cursor = connection.cursor()
@@ -229,7 +257,7 @@ def complete_performance():
     connection = get_connection()
     cursor = connection.cursor()
     try:
-        # Get the singer at position 1 (front of the queue)
+        # Get the singer at position 1
         query = """
         SELECT q.id, s.name, s.song_title
         FROM queue q
@@ -249,7 +277,6 @@ def complete_performance():
         # Remove the singer from the queue
         cursor.execute("DELETE FROM queue WHERE id = %s;", (queue_id,))
 
-        # Shift the remaining queue entries
         cursor.execute("""
             UPDATE queue
             SET position = position - 1
@@ -269,14 +296,12 @@ def migrate_schema():
     connection = get_connection()
     cursor = connection.cursor()
     try:
-        # Migration: Add nickname column to singers table
         query = """
         ALTER TABLE singers
         ADD COLUMN IF NOT EXISTS nickname TEXT DEFAULT NULL;
         """
         cursor.execute(query)
 
-        # Migration: Create performances table
         query = """
         CREATE TABLE IF NOT EXISTS performances (
             id SERIAL PRIMARY KEY,
