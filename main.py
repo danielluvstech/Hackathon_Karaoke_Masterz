@@ -1,16 +1,17 @@
-from db_connection import add_singer, get_singer_names, add_to_queue, migrate_schema, update_song_title, get_queue
+from db_connection import add_singer, get_singer_names, add_to_queue, migrate_schema, update_song_title, get_queue, reorder_queue, complete_performance, get_performance_log
 from api_connection import get_song_suggestions
 
 def main_menu():
     """
     Displays the main menu and handles user input.
     """
-    print("\nWelcome to Karaoke Night Manager!!! 🎤")
-    print("Sign up, change your song, or manage the queue with Spotify-powered suggestions.")
+    print("\nWelcome to Karaoke Night Manager! 🎤")
+    print("Sign up, change your song, manage the queue, or log performances with Spotify-powered suggestions.")
     
+    # Check if the schema is already up to date
     try:
         migrate_schema()
-        print("Schema up to date.")
+        print("Schema already up to date (song_title and performances table exist).")
     except Exception as e:
         print(f"Error during schema migration: {e}")
 
@@ -19,7 +20,10 @@ def main_menu():
         print("1. Sign Up")
         print("2. Change Song")
         print("3. View Queue")
-        print("4. Exit")
+        print("4. Reorder Queue")
+        print("5. Complete Performance")
+        print("6. View Performance Log")
+        print("7. Exit")
         choice = input("Choose an option: ")
 
         if choice == "1":
@@ -29,19 +33,31 @@ def main_menu():
         elif choice == "3":
             view_queue()
         elif choice == "4":
-            print("Thanks for singing with us! 🎶")
+            reorder_queue_menu()
+        elif choice == "5":
+            complete_performance_menu()
+        elif choice == "6":
+            view_performance_log()
+        elif choice == "7":
+            print("Goodbye! 🎶")
             break
         else:
-            print("Invalid option. Please choose 1, 2, 3, or 4.")
+            print("Invalid option. Please choose 1, 2, 3, 4, 5, 6, or 7.")
 
 def sign_up():
     """
     Handles the user sign-up process.
     """
     print("\n=== Sign Up ===")
-    singer_name = input("Enter your name: ").strip()
+    singer_name = input("Enter your name (3-100 characters): ").strip()
     if not 3 <= len(singer_name) <= 100:
         print("Name must be between 3 and 100 characters. Please try again.")
+        return
+
+    # Check if the name already exists
+    existing_names = get_singer_names()
+    if singer_name in existing_names:
+        print(f"Name '{singer_name}' is already taken! Choose another.")
         return
 
     # Get Spotify song suggestions
@@ -60,13 +76,16 @@ def sign_up():
             print("No suggestions found. Please enter a song title manually.")
             return
 
-    if not 3 <= len(song_title) <= 100:
+    if not song_title or not 3 <= len(song_title) <= 100:
         print("Song title must be between 3 and 100 characters. Please try again.")
         return
 
     try:
         result = add_singer(singer_name, song_title)
         print(result)
+        # Parse the singer_id from the result message (e.g., "Singer TestUser added successfully with ID 6!")
+        singer_id = int(result.split("ID ")[-1].rstrip("!"))
+        add_to_queue(singer_id)
     except Exception as e:
         print(f"Error during sign-up: {e}")
 
@@ -163,9 +182,83 @@ def view_queue():
         print("Current Queue:")
         for entry in queue:
             singer = entry.singer
-            print(f"Position {entry.position}: {singer.name} singing '{singer.song_title}'")
+            print(f"Queue ID {entry.id} - Position {entry.position}: {singer.name} singing '{singer.song_title}'")
     except Exception as e:
         print(f"Error retrieving queue: {e}")
+
+def reorder_queue_menu():
+    """
+    Allows the user to reorder the queue by selecting a queue entry and a new position.
+    """
+    print("\n=== Reorder Queue ===\n")
+    try:
+        queue = get_queue()
+        if not queue:
+            print("The queue is empty.")
+            return
+
+        print("Current Queue:")
+        for entry in queue:
+            singer = entry.singer
+            print(f"Queue ID {entry.id} - Position {entry.position}: {singer.name} singing '{singer.song_title}'")
+
+        # Select a queue entry to reorder
+        choice = input("\nEnter the Queue ID to reorder (or press Enter to cancel): ").strip()
+        if not choice:
+            print("Cancelled.")
+            return
+
+        if not choice.isdigit() or not any(entry.id == int(choice) for entry in queue):
+            print("Invalid Queue ID. Please try again.")
+            return
+
+        queue_entry_id = int(choice)
+        new_position = input("Enter the new position (e.g., 1, 2, ...): ").strip()
+        if not new_position.isdigit():
+            print("Invalid position. Please enter a number.")
+            return
+
+        new_position = int(new_position)
+        result = reorder_queue(queue_entry_id, new_position)
+        print(result)
+
+        # Display the updated queue
+        print("\nUpdated Queue:")
+        queue = get_queue()
+        for entry in queue:
+            singer = entry.singer
+            print(f"Queue ID {entry.id} - Position {entry.position}: {singer.name} singing '{singer.song_title}'")
+    except Exception as e:
+        print(f"Error reordering queue: {e}")
+
+def complete_performance_menu():
+    """
+    Removes the singer at the front of the queue and logs their performance.
+    """
+    print("\n=== Complete Performance ===\n")
+    try:
+        singer_name, song_title = complete_performance()
+        print(f"Performance completed: {singer_name} sang '{song_title}'.")
+        print("Their performance has been logged.")
+    except Exception as e:
+        print(f"Error completing performance: {e}")
+
+def view_performance_log():
+    """
+    Displays the performance log.
+    """
+    print("\n=== Performance Log ===\n")
+    try:
+        performances = get_performance_log()
+        if not performances:
+            print("No performances have been logged yet.")
+            return
+
+        print("Performance Log (Newest First):")
+        for performance in performances:
+            print(f"ID {performance['id']}: {performance['singer_name']} sang '{performance['song_title']}' at {performance['timestamp']}")
+    except Exception as e:
+        print(f"Error retrieving performance log: {e}")
 
 if __name__ == "__main__":
     main_menu()
