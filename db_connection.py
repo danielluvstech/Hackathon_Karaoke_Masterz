@@ -2,17 +2,14 @@ import psycopg2
 from psycopg2 import sql, OperationalError
 from models import Singer, QueueEntry
 
+# Replace with your PostgreSQL connection parameters
 DB_NAME = "karaoke"
-DB_USER = "postgres"  
-DB_PASSWORD = "D@nth3man"  
-DB_HOST = "localhost"  
-DB_PORT = "5432" 
+DB_USER = "postgres"
+DB_PASSWORD = "D@nth3man"
+DB_HOST = "localhost"
+DB_PORT = "5432"
 
 def get_connection():
-    """
-    Establishes a connection to the PostgreSQL database.
-    Returns the connection object.
-    """
     try:
         connection = psycopg2.connect(
             dbname=DB_NAME,
@@ -26,14 +23,9 @@ def get_connection():
         raise RuntimeError(f"Error connecting to the database: {e}")
 
 def add_singer(name, song_title):
-    """
-    Adds a singer to the PostgreSQL database.
-    """
     connection = get_connection()
     cursor = connection.cursor()
-
     try:
-        # Add the singer
         query = """
         INSERT INTO singers (name, song_title)
         VALUES (%s, %s)
@@ -41,7 +33,6 @@ def add_singer(name, song_title):
         """
         cursor.execute(query, (name, song_title))
         singer_id = cursor.fetchone()[0]
-
         connection.commit()
         return f"Singer {name} added successfully with ID {singer_id}!"
     except Exception as e:
@@ -52,26 +43,18 @@ def add_singer(name, song_title):
         connection.close()
 
 def add_to_queue(singer_id, position=None):
-    """
-    Adds a song to the queue for a specific singer.
-    If position is not provided, it will auto-calculate the next available position.
-    """
     connection = get_connection()
     cursor = connection.cursor()
-
     try:
         if position is None:
             cursor.execute("SELECT MAX(position) FROM queue;")
             max_position = cursor.fetchone()[0]
             position = (max_position or 0) + 1
-
-        # Add the singer to the queue
         query = """
         INSERT INTO queue (singer_id, position)
         VALUES (%s, %s);
         """
         cursor.execute(query, (singer_id, position))
-
         connection.commit()
         return f"Singer with ID {singer_id} added to the queue at position {position}!"
     except Exception as e:
@@ -82,12 +65,8 @@ def add_to_queue(singer_id, position=None):
         connection.close()
 
 def update_song_title(singer_id, new_song_title):
-    """
-    Updates the song_title for a specific singer in the singers table.
-    """
     connection = get_connection()
     cursor = connection.cursor()
-
     try:
         query = """
         UPDATE singers
@@ -95,7 +74,6 @@ def update_song_title(singer_id, new_song_title):
         WHERE id = %s;
         """
         cursor.execute(query, (new_song_title, singer_id))
-
         connection.commit()
         return f"Singer's song updated successfully to '{new_song_title}'!"
     except Exception as e:
@@ -106,12 +84,8 @@ def update_song_title(singer_id, new_song_title):
         connection.close()
 
 def get_singer_names():
-    """
-    Retrieves all singer names from the database.
-    """
     connection = get_connection()
     cursor = connection.cursor()
-
     try:
         query = "SELECT name FROM singers;"
         cursor.execute(query)
@@ -126,7 +100,6 @@ def get_singer_names():
 def get_queue():
     connection = get_connection()
     cursor = connection.cursor()
-
     try:
         query = """
         SELECT q.id, q.singer_id, q.position, s.id, s.name, s.song_title, s.nickname
@@ -136,13 +109,12 @@ def get_queue():
         """
         cursor.execute(query)
         rows = cursor.fetchall()
-
         queue = []
         for row in rows:
             queue_id, singer_id, position, s_id, name, song_title, nickname = row
             singer = Singer(s_id, name, song_title, nickname)
             queue_entry = QueueEntry(queue_id, singer_id, position)
-            queue_entry.singer = singer  # Attach the Singer object to the QueueEntry
+            queue_entry.singer = singer
             queue.append(queue_entry)
         return queue
     except Exception as e:
@@ -151,17 +123,167 @@ def get_queue():
         cursor.close()
         connection.close()
 
-def migrate_schema():
+def reorder_queue(queue_entry_id, new_position):
+    connection = get_connection()
+    cursor = connection.cursor()
+    try:
+        cursor.execute("SELECT position FROM queue WHERE id = %s;", (queue_entry_id,))
+        current_position = cursor.fetchone()
+        if not current_position:
+            raise RuntimeError(f"Queue entry with ID {queue_entry_id} not found.")
+        current_position = current_position[0]
+
+        cursor.execute("SELECT MAX(position) FROM queue;")
+        max_position = cursor.fetchone()[0] or 0
+
+        if new_position < 1 or new_position > max_position:
+            raise RuntimeError(f"New position must be between 1 and {max_position}.")
+
+        if new_position < current_position:
+            cursor.execute("""
+                UPDATE queue
+                SET position = position + 1
+                WHERE position >= %s AND position < %s;
+            """, (new_position, current_position))
+        elif new_position > current_position:
+            cursor.execute("""
+                UPDATE queue
+                SET position = position - 1
+                WHERE position <= %s AND position > %s;
+            """, (new_position, current_position))
+
+        cursor.execute("""
+            UPDATE queue
+            SET position = %s
+            WHERE id = %s;
+        """, (new_position, queue_entry_id))
+
+        connection.commit()
+        return f"Queue entry {queue_entry_id} moved to position {new_position}!"
+    except Exception as e:
+        connection.rollback()
+        raise RuntimeError(f"Error reordering queue: {e}")
+    finally:
+        cursor.close()
+        connection.close()
+
+def log_performance(singer_name, song_title):
     """
-    Apply any necessary migrations to the database schema.
+    Logs a performance in the performances table.
     """
     connection = get_connection()
     cursor = connection.cursor()
-
     try:
+        query = """
+        INSERT INTO performances (singer_name, song_title)
+        VALUES (%s, %s)
+        RETURNING id;
+        """
+        cursor.execute(query, (singer_name, song_title))
+        performance_id = cursor.fetchone()[0]
+        connection.commit()
+        return f"Performance logged successfully with ID {performance_id}!"
+    except Exception as e:
+        connection.rollback()
+        raise RuntimeError(f"Error logging performance: {e}")
+    finally:
+        cursor.close()
+        connection.close()
+
+def get_performance_log():
+    """
+    Retrieves the performance log from the performances table.
+    Returns a list of dictionaries with performance details.
+    """
+    connection = get_connection()
+    cursor = connection.cursor()
+    try:
+        query = """
+        SELECT id, singer_name, song_title, timestamp
+        FROM performances
+        ORDER BY timestamp DESC;
+        """
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        performances = [
+            {
+                "id": row[0],
+                "singer_name": row[1],
+                "song_title": row[2],
+                "timestamp": row[3]
+            }
+            for row in rows
+        ]
+        return performances
+    except Exception as e:
+        raise RuntimeError(f"Error retrieving performance log: {e}")
+    finally:
+        cursor.close()
+        connection.close()
+
+def complete_performance():
+    """
+    Removes the singer at the front of the queue, logs their performance, and shifts the queue.
+    Returns the singer's name and song title for confirmation.
+    """
+    connection = get_connection()
+    cursor = connection.cursor()
+    try:
+        # Get the singer at position 1 (front of the queue)
+        query = """
+        SELECT q.id, s.name, s.song_title
+        FROM queue q
+        JOIN singers s ON q.singer_id = s.id
+        WHERE q.position = 1;
+        """
+        cursor.execute(query)
+        row = cursor.fetchone()
+        if not row:
+            raise RuntimeError("Queue is empty. No performance to complete.")
+
+        queue_id, singer_name, song_title = row
+
+        # Log the performance
+        log_performance(singer_name, song_title)
+
+        # Remove the singer from the queue
+        cursor.execute("DELETE FROM queue WHERE id = %s;", (queue_id,))
+
+        # Shift the remaining queue entries
+        cursor.execute("""
+            UPDATE queue
+            SET position = position - 1
+            WHERE position > 1;
+        """)
+
+        connection.commit()
+        return singer_name, song_title
+    except Exception as e:
+        connection.rollback()
+        raise RuntimeError(f"Error completing performance: {e}")
+    finally:
+        cursor.close()
+        connection.close()
+
+def migrate_schema():
+    connection = get_connection()
+    cursor = connection.cursor()
+    try:
+        # Migration: Add nickname column to singers table
         query = """
         ALTER TABLE singers
         ADD COLUMN IF NOT EXISTS nickname TEXT DEFAULT NULL;
+        """
+        cursor.execute(query)
+
+        # Migration: Create performances table
+        query = """
+        CREATE TABLE IF NOT EXISTS performances (
+            id SERIAL PRIMARY KEY,
+            singer_name TEXT NOT NULL,
+            song_title TEXT NOT NULL,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         """
         cursor.execute(query)
 
@@ -175,9 +297,6 @@ def migrate_schema():
         connection.close()
 
 def test_connection():
-    """
-    Tests the connection to the PostgreSQL database by executing a simple query.
-    """
     try:
         connection = get_connection()
         cursor = connection.cursor()
@@ -192,5 +311,4 @@ def test_connection():
         return f"Database connection test failed: {e}"
 
 if __name__ == "__main__":
-    # Run the connection test
     print(test_connection())
