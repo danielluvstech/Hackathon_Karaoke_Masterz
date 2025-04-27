@@ -1,0 +1,9 @@
+Explanations on the Github repositories.
+
+I worked on branches user sign up and song selection, new song management, and change song. 
+
+Anania worked on queue management, performance log, and queue export json.
+
+Unfortunately, we were running into trouble while trying to merge our branches, and decided that I'll commit all the files, 
+but writing these notes here to let you know that Anania also deserves credit for what he did,
+even though Github does not show it.
