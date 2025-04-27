@@ -1,29 +1,82 @@
-Karaoke Night Manager
+🎤 Karaoke Night Manager 🎵
+🌟 The Ultimate Karaoke Party Companion 🌟
+Say goodbye to karaoke chaos and hello to seamless singing sessions! This Python-powered application transforms your karaoke party experience with Spotify integration, smart queue management, and performance tracking.
+-----------------------------------------------------------------------------------------
+✨ Features
+🎙️ Singer Management
+-----------------------------------------------------------------------------------------
+Sign Up 📝 Add singers with Spotify-powered song suggestions
+Change Song 🔄 Update songs without losing queue position
+View Queue 👀 See who's up next at any time
+-----------------------------------------------------------------------------------------
+🎬 Performance Control
 
-A Python-based karaoke management application for karaoke parties, featuring Spotify-powered song suggestions, queue management, performance logging, and JSON export. Say goodbye to the manual irriatation of having to remember who is next by yourself, and hello to this wonderful new app that is gonna change lives for karaoke!
+Next Up ⏭️ Easily identify the next performer
+Reorder Queue 📊 Flexible queue management for any situation
+Complete Performance ✅ Track finished performances
+-----------------------------------------------------------------------------------------
+📊 Data & Exports
 
-Features:
+Performance History 📜 Review the night's performances
+Export to JSON 💾 Save your queue data for external use
+Stats & Analytics 📈 Track your karaoke party trends
+-----------------------------------------------------------------------------------------
 
-Sign Up: Add a new singer to the queue with a song, using Spotify suggestions.
+🛠️ Technology Stack
 
-Change Song: Update a singer's song without changing their queue position.
+🐍 Python - Core application logic
+🐘 PostgreSQL - Robust data storage
+🎧 Spotify API - Song suggestion engine
+🌐 Flask - Web API for remote access
+📄 JSON - Data export capabilities
+-----------------------------------------------------------------------------------------
 
-View Queue: Display the current queue in order.
+🚀 Getting Started
+Prerequisites
 
-Reorder Queue: Move singers to different positions in the queue.
+Python 3.8+
+PostgreSQL
+Spotify Developer API credentials
+-----------------------------------------------------------------------------------------
+⚡ Quick Install
+bash# Clone the repository
+git clone https://github.com/yourusername/karaoke-night-manager.git
 
-Complete Performance: Remove the singer at the front of the queue and log their performance.
+# Move into directory
+cd karaoke-night-manager
 
-View Performance Log: Display the history of completed performances.
+# Install dependencies
+pip install -r requirements.txt
 
-Export Queue to JSON: Export the current queue to queue.json with position, singer name, song title, and export timestamp.
+# Configure database & API credentials
+# (Update settings in db_connection.py and api_connection.py)
 
-Technologies Used
+# Start the application
+python main.py
 
-Python: Core programming language for the application.
+# For web API server
+python api_connection.py
 
-Database (PostgreSQL): Stores singers, queue, and performance logs.
+🌐 API Reference
+EndpointMethodDescription/queue/addPOSTAdd new singer to queue/queue/nextGETGet next performer/queueGETView entire queue
+-----------------------------------------------------------------------------------------
+📱 User Interfaces
 
-API (Spotify): Fetches song suggestions for singers.
+💻 Command Line Interface - Manage your karaoke night locally
+🌐 Web API - Control queue remotely
+-----------------------------------------------------------------------------------------
 
-Files/JSON: Exports the queue to queue.json for external use.
+🚧 Future Roadmap
+
+📱 Mobile App - Control your karaoke party from your phone
+🎬 YouTube Integration - Direct links to karaoke tracks
+🏢 Multi-Room Support - Run multiple karaoke sessions
+🏆 Rating System - Who's the karaoke champion?
+-----------------------------------------------------------------------------------------
+👏 Acknowledgments
+
+🎵 Thanks to Spotify for powering our song suggestions
+🎤 Dedicated to karaoke lovers everywhere
+🍻 Special thanks to everyone who's ever sung "Don't Stop Believin'" at 2AM
+-----------------------------------------------------------------------------------------
+🎶 Keep calm and karaoke on! 🎶
