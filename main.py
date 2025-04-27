@@ -1,4 +1,4 @@
-from db_connection import add_singer, get_singer_names, add_to_queue, migrate_schema, update_song_title, get_queue, reorder_queue, complete_performance, get_performance_log
+from db_connection import add_singer, get_singer_names, add_to_queue, migrate_schema, update_song_title, get_queue, reorder_queue, complete_performance, get_performance_log, export_queue_to_json
 from api_connection import get_song_suggestions
 
 def main_menu():
@@ -6,12 +6,12 @@ def main_menu():
     Displays the main menu and handles user input.
     """
     print("\nWelcome to Karaoke Night Manager! 🎤")
-    print("Sign up, change your song, manage the queue, or log performances with Spotify-powered suggestions.")
+    print("Sign up, change your song, manage the queue, log performances, or export the queue with Spotify-powered suggestions.")
     
     # Check if the schema is already up to date
     try:
         migrate_schema()
-        print("Schema already up to date (song_title and performances table exist).")
+        print("Let's get started!!.")
     except Exception as e:
         print(f"Error during schema migration: {e}")
 
@@ -23,7 +23,8 @@ def main_menu():
         print("4. Reorder Queue")
         print("5. Complete Performance")
         print("6. View Performance Log")
-        print("7. Exit")
+        print("7. View que (JSON)")
+        print("8. Exit")
         choice = input("Choose an option: ")
 
         if choice == "1":
@@ -39,10 +40,12 @@ def main_menu():
         elif choice == "6":
             view_performance_log()
         elif choice == "7":
-            print("Goodbye! 🎶")
+            export_queue()
+        elif choice == "8":
+            print("Thanks for singing with us! 🎶")
             break
         else:
-            print("Invalid option. Please choose 1, 2, 3, 4, 5, 6, or 7.")
+            print("Invalid option. Please choose 1, 2, 3, 4, 5, 6, 7, or 8.")
 
 def sign_up():
     """
@@ -60,7 +63,6 @@ def sign_up():
         print(f"Name '{singer_name}' is already taken! Choose another.")
         return
 
-    # Get Spotify song suggestions
     song_title = input("Enter a song title (or press Enter to get suggestions): ").strip()
     if not song_title:
         print("Fetching Spotify song suggestions...")
@@ -158,12 +160,10 @@ def change_song():
         return
 
     try:
-        # Update the song title in the singers table
-        singer_id = singer_index + 1  # Assuming singer_id matches the index + 1
+        singer_id = singer_index + 1 
         result = update_song_title(singer_id, new_song_title)
         print(result)
 
-        # Preserve the singer's position in the queue (do not move them)
         print(f"{singer_name}'s song has been updated to '{new_song_title}', and their position in the queue remains unchanged.")
     except Exception as e:
         print(f"Error while changing the song: {e}")
@@ -237,6 +237,18 @@ def complete_performance_menu():
     """
     print("\n=== Complete Performance ===\n")
     try:
+        queue = get_queue()
+        if not queue:
+            print("The queue is empty. No performance to complete.")
+            return
+
+        front_singer = queue[0].singer
+        print(f"Next up: {front_singer.name} singing '{front_singer.song_title}'.")
+        confirm = input("Complete this performance? (y/n): ").strip().lower()
+        if confirm != 'y':
+            print("Performance completion cancelled.")
+            return
+
         singer_name, song_title = complete_performance()
         print(f"Performance completed: {singer_name} sang '{song_title}'.")
         print("Their performance has been logged.")
@@ -259,6 +271,17 @@ def view_performance_log():
             print(f"ID {performance['id']}: {performance['singer_name']} sang '{performance['song_title']}' at {performance['timestamp']}")
     except Exception as e:
         print(f"Error retrieving performance log: {e}")
+
+def export_queue():
+    """
+    Exports the current queue to a JSON file.
+    """
+    print("\n=== Export Queue to JSON ===\n")
+    try:
+        result = export_queue_to_json()
+        print(result)
+    except Exception as e:
+        print(f"Error exporting queue: {e}")
 
 if __name__ == "__main__":
     main_menu()
