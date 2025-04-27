@@ -1,13 +1,12 @@
 import psycopg2
 from psycopg2 import sql, OperationalError
+from models import Singer, QueueEntry
 
-# Replace with your PostgreSQL connection parameters
 DB_NAME = "karaoke"
-DB_USER = "postgres"  # Replace with your PostgreSQL username
-DB_PASSWORD = "D@nth3man"  # Replace with your PostgreSQL password
-DB_HOST = "localhost"  # Replace with your database host, e.g., '127.0.0.1'
-DB_PORT = "5432"  # Replace with your PostgreSQL port
-
+DB_USER = "postgres"  
+DB_PASSWORD = "D@nth3man"  
+DB_HOST = "localhost"  
+DB_PORT = "5432" 
 
 def get_connection():
     """
@@ -25,7 +24,6 @@ def get_connection():
         return connection
     except OperationalError as e:
         raise RuntimeError(f"Error connecting to the database: {e}")
-
 
 def add_singer(name, song_title):
     """
@@ -53,7 +51,6 @@ def add_singer(name, song_title):
         cursor.close()
         connection.close()
 
-
 def add_to_queue(singer_id, position=None):
     """
     Adds a song to the queue for a specific singer.
@@ -63,7 +60,6 @@ def add_to_queue(singer_id, position=None):
     cursor = connection.cursor()
 
     try:
-        # If position is not provided, calculate the next available position
         if position is None:
             cursor.execute("SELECT MAX(position) FROM queue;")
             max_position = cursor.fetchone()[0]
@@ -127,6 +123,33 @@ def get_singer_names():
         cursor.close()
         connection.close()
 
+def get_queue():
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    try:
+        query = """
+        SELECT q.id, q.singer_id, q.position, s.id, s.name, s.song_title, s.nickname
+        FROM queue q
+        JOIN singers s ON q.singer_id = s.id
+        ORDER BY q.position;
+        """
+        cursor.execute(query)
+        rows = cursor.fetchall()
+
+        queue = []
+        for row in rows:
+            queue_id, singer_id, position, s_id, name, song_title, nickname = row
+            singer = Singer(s_id, name, song_title, nickname)
+            queue_entry = QueueEntry(queue_id, singer_id, position)
+            queue_entry.singer = singer  # Attach the Singer object to the QueueEntry
+            queue.append(queue_entry)
+        return queue
+    except Exception as e:
+        raise RuntimeError(f"Error retrieving queue: {e}")
+    finally:
+        cursor.close()
+        connection.close()
 
 def migrate_schema():
     """
@@ -136,7 +159,6 @@ def migrate_schema():
     cursor = connection.cursor()
 
     try:
-        # Example migration: Add a new column to the singers table
         query = """
         ALTER TABLE singers
         ADD COLUMN IF NOT EXISTS nickname TEXT DEFAULT NULL;
@@ -151,7 +173,6 @@ def migrate_schema():
     finally:
         cursor.close()
         connection.close()
-
 
 def test_connection():
     """
@@ -170,8 +191,6 @@ def test_connection():
     except Exception as e:
         return f"Database connection test failed: {e}"
 
-
-# Example usage
 if __name__ == "__main__":
     # Run the connection test
     print(test_connection())
