@@ -1,17 +1,16 @@
-from db_connection import add_singer, get_singer_names, add_to_queue, migrate_schema, update_song_title
+from db_connection import add_singer, get_singer_names, add_to_queue, migrate_schema, update_song_title, get_queue
 from api_connection import get_song_suggestions
 
 def main_menu():
     """
     Displays the main menu and handles user input.
     """
-    print("\nWelcome to Karaoke Night Manager! 🎤")
-    print("Sign up or change your song with Spotify-powered suggestions.")
+    print("\nWelcome to Karaoke Night Manager!!! 🎤")
+    print("Sign up, change your song, or manage the queue with Spotify-powered suggestions.")
     
-    # Check if the schema is already up to date
     try:
         migrate_schema()
-        print("Schema already up to date (song_title exists).")
+        print("Schema up to date.")
     except Exception as e:
         print(f"Error during schema migration: {e}")
 
@@ -19,7 +18,8 @@ def main_menu():
         print("\n=== Karaoke Night Manager ===")
         print("1. Sign Up")
         print("2. Change Song")
-        print("3. Exit")
+        print("3. View Queue")
+        print("4. Exit")
         choice = input("Choose an option: ")
 
         if choice == "1":
@@ -27,17 +27,19 @@ def main_menu():
         elif choice == "2":
             change_song()
         elif choice == "3":
-            print("Goodbye! 🎶")
+            view_queue()
+        elif choice == "4":
+            print("Thanks for singing with us! 🎶")
             break
         else:
-            print("Invalid option. Please choose 1, 2, or 3.")
+            print("Invalid option. Please choose 1, 2, 3, or 4.")
 
 def sign_up():
     """
     Handles the user sign-up process.
     """
     print("\n=== Sign Up ===")
-    singer_name = input("Enter your name (3-100 characters): ").strip()
+    singer_name = input("Enter your name: ").strip()
     if not 3 <= len(singer_name) <= 100:
         print("Name must be between 3 and 100 characters. Please try again.")
         return
@@ -46,7 +48,7 @@ def sign_up():
     song_title = input("Enter a song title (or press Enter to get suggestions): ").strip()
     if not song_title:
         print("Fetching Spotify song suggestions...")
-        suggestions = get_song_suggestions(song_title)  # Empty input fetches general suggestions
+        suggestions = get_song_suggestions(query_type="genre", query_value="pop")  # Default to pop genre
         if suggestions:
             print("Here are some song suggestions:")
             for i, suggestion in enumerate(suggestions, start=1):
@@ -146,6 +148,24 @@ def change_song():
         print(f"{singer_name}'s song has been updated to '{new_song_title}', and their position in the queue remains unchanged.")
     except Exception as e:
         print(f"Error while changing the song: {e}")
+
+def view_queue():
+    """
+    Displays the current queue in order of position.
+    """
+    print("\n=== View Queue ===\n")
+    try:
+        queue = get_queue()
+        if not queue:
+            print("The queue is empty.")
+            return
+
+        print("Current Queue:")
+        for entry in queue:
+            singer = entry.singer
+            print(f"Position {entry.position}: {singer.name} singing '{singer.song_title}'")
+    except Exception as e:
+        print(f"Error retrieving queue: {e}")
 
 if __name__ == "__main__":
     main_menu()
